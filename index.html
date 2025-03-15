@@ -1,146 +1,108 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Snow Rider</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #000; }
-        canvas { display: block; }
-        #instructions {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            color: white;
-            background: rgba(0,0,0,0.5);
-            padding: 10px;
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
-        }
-    </style>
-</head>
-<body>
-    <div id="instructions">
-        Controls:<br>
-        W - Move forward<br>
-        S - Brake<br>
-        A - Turn left<br>
-        D - Turn right
-    </div>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.162.0/build/three.module.js"
-            }
-        }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
+// ... existing code ...
+// Replace the player creation part in the init() function with this:
 
-        class SnowRider {
-            constructor() {
-                this.scene = new THREE.Scene();
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                this.renderer = new THREE.WebGLRenderer();
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-                document.body.appendChild(this.renderer.domElement);
+                // Create skier character
+                this.playerGroup = new THREE.Group();
 
-                this.player = {
-                    position: new THREE.Vector3(0, 50, 0),
-                    velocity: new THREE.Vector3(0, 0, 0),
-                    rotation: new THREE.Euler(0, 0, 0),
-                    speed: 0,
-                    isGrounded: false
-                };
+                // Body (coat)
+                const bodyGeometry = new THREE.BoxGeometry(1, 1.5, 0.7);
+                const coatMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 }); // Red coat
+                const body = new THREE.Mesh(bodyGeometry, coatMaterial);
+                body.position.y = 1.5;
+                this.playerGroup.add(body);
 
-                this.init();
-            }
+                // Head with helmet
+                const helmetGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+                const helmetMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 }); // Black helmet
+                const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
+                helmet.position.y = 2.5;
+                this.playerGroup.add(helmet);
 
-            init() {
-                // Create terrain
-                const terrainGeometry = new THREE.PlaneGeometry(200, 200, 40, 40);
-                const terrainMaterial = new THREE.MeshPhongMaterial({ 
-                    color: 0xffffff,
-                    wireframe: false 
-                });
-                this.terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
-                this.terrain.rotation.x = -Math.PI / 2;
-                this.scene.add(this.terrain);
+                // Goggles
+                const gogglesGeometry = new THREE.BoxGeometry(0.6, 0.15, 0.1);
+                const gogglesMaterial = new THREE.MeshPhongMaterial({ color: 0x3366ff }); // Blue goggles
+                const goggles = new THREE.Mesh(gogglesGeometry, gogglesMaterial);
+                goggles.position.y = 2.5;
+                goggles.position.z = 0.2;
+                this.playerGroup.add(goggles);
 
-                // Create player
-                const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
-                const playerMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
-                this.playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
-                this.scene.add(this.playerMesh);
+                // Left Ski
+                const skiGeometry = new THREE.BoxGeometry(0.2, 0.1, 2);
+                const skiMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 }); // Dark gray skis
+                const leftSki = new THREE.Mesh(skiGeometry, skiMaterial);
+                leftSki.position.set(-0.3, 0, 0);
+                this.playerGroup.add(leftSki);
 
-                // Add lighting
-                const light = new THREE.DirectionalLight(0xffffff, 1);
-                light.position.set(0, 100, 0);
-                this.scene.add(light);
-                this.scene.add(new THREE.AmbientLight(0x404040));
+                // Right Ski
+                const rightSki = new THREE.Mesh(skiGeometry, skiMaterial);
+                rightSki.position.set(0.3, 0, 0);
+                this.playerGroup.add(rightSki);
 
-                // Set camera position
-                this.camera.position.set(0, 10, 20);
-                this.camera.lookAt(this.playerMesh.position);
+                // Left Pole
+                const poleGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.4);
+                const poleMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 }); // Silver poles
+                const leftPole = new THREE.Mesh(poleGeometry, poleMaterial);
+                leftPole.position.set(-0.6, 1.2, 0.3);
+                this.playerGroup.add(leftPole);
 
-                this.setupControls();
-                this.animate();
-            }
+                // Right Pole
+                const rightPole = new THREE.Mesh(poleGeometry, poleMaterial);
+                rightPole.position.set(0.6, 1.2, 0.3);
+                this.playerGroup.add(rightPole);
 
-            setupControls() {
-                this.keys = {
-                    left: false,
-                    right: false,
-                    up: false,
-                    down: false
-                };
+                // Pole baskets
+                const basketGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.05);
+                const basketMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+                
+                const leftBasket = new THREE.Mesh(basketGeometry, basketMaterial);
+                leftBasket.position.set(-0.6, 0.5, 0.3);
+                this.playerGroup.add(leftBasket);
 
-                window.addEventListener('keydown', (e) => {
-                    switch(e.key.toLowerCase()) {
-                        case 'a': this.keys.left = true; break;
-                        case 'd': this.keys.right = true; break;
-                        case 'w': this.keys.up = true; break;
-                        case 's': this.keys.down = true; break;
-                    }
-                });
+                const rightBasket = new THREE.Mesh(basketGeometry, basketMaterial);
+                rightBasket.position.set(0.6, 0.5, 0.3);
+                this.playerGroup.add(rightBasket);
 
-                window.addEventListener('keyup', (e) => {
-                    switch(e.key.toLowerCase()) {
-                        case 'a': this.keys.left = false; break;
-                        case 'd': this.keys.right = false; break;
-                        case 'w': this.keys.up = false; break;
-                        case 's': this.keys.down = false; break;
-                    }
-                });
-            }
+                // Arms
+                const armGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.8);
+                const armMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 }); // Red to match coat
 
-            updatePlayer(delta) {
-                if (this.keys.left) this.player.rotation.y += 2 * delta;
-                if (this.keys.right) this.player.rotation.y -= 2 * delta;
-                if (this.keys.up) this.player.speed = Math.min(this.player.speed + 10 * delta, 30);
-                if (this.keys.down) this.player.speed = Math.max(this.player.speed - 10 * delta, 0);
+                const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+                leftArm.position.set(-0.6, 1.8, 0);
+                leftArm.rotation.z = -0.3;
+                this.playerGroup.add(leftArm);
 
-                const direction = new THREE.Vector3(0, 0, -1);
-                direction.applyEuler(this.player.rotation);
-                this.player.position.add(direction.multiplyScalar(this.player.speed * delta));
+                const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+                rightArm.position.set(0.6, 1.8, 0);
+                rightArm.rotation.z = 0.3;
+                this.playerGroup.add(rightArm);
 
-                this.playerMesh.position.copy(this.player.position);
-                this.playerMesh.rotation.copy(this.player.rotation);
+                // Add the entire player group to the scene
+                this.scene.add(this.playerGroup);
+                this.playerMesh = this.playerGroup; // Update reference for existing movement code
 
-                this.camera.position.copy(this.player.position);
-                this.camera.position.y += 10;
-                this.camera.position.z += 20;
-                this.camera.lookAt(this.player.position);
-            }
+// ... rest of existing code ...            animateSkiing(delta) {
+                if (this.player.speed > 0) {
+                    // Swing poles back and forth
+                    const poleSwing = Math.sin(Date.now() * 0.01) * 0.2;
+                    this.playerGroup.children.forEach(child => {
+                        if (child.position.x === -0.6 || child.position.x === 0.6) { // Poles
+                            child.rotation.x = poleSwing;
+                        }
+                    });
 
-            animate() {
-                requestAnimationFrame(() => this.animate());
-                this.updatePlayer(1/60);
-                this.renderer.render(this.scene, this.camera);
-            }
-        }
+                    // Lean forward when going fast
+                    const speedLean = Math.min(this.player.speed / 40, 0.3);
+                    this.playerGroup.rotation.x = speedLean;
+                }
 
-        window.onload = () => {
-            new SnowRider();
-        };
-    </script>
-</body>
-</html>
+                // Lean into turns
+                const turnLean = this.keys.left ? 0.2 : this.keys.right ? -0.2 : 0;
+                this.playerGroup.rotation.z = turnLean;
+
+                // Crouch when holding shift
+                if (this.keys.shift) {
+                    this.playerGroup.scale.y = 0.8;
+                } else {
+                    this.playerGroup.scale.y = 1;
+                }
+            }this.animateSkiing(delta);
