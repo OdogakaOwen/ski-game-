@@ -1,24 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Snow Rider Pro</title>
+    <title>Steep Clone</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
         canvas { display: block; }
-        #hud {
+        #race-info {
             position: fixed;
-            top: 10px;
-            left: 10px;
+            left: 20px;
+            top: 20px;
             color: white;
-            background: rgba(0,0,0,0.5);
-            padding: 10px;
-            border-radius: 5px;
             font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 24px;
         }
         #score {
             position: fixed;
-            top: 10px;
-            right: 10px;
+            top: 20px;
+            right: 20px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+        }
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
             color: white;
             background: rgba(0,0,0,0.5);
             padding: 10px;
@@ -28,16 +40,14 @@
     </style>
 </head>
 <body>
-    <div id="hud">
-        Controls:<br>
-        W - Forward<br>
-        S - Brake<br>
-        A/D - Turn<br>
-        SPACE - Jump<br>
-        SHIFT - Crouch<br>
-        ARROWS - Tricks
+    <div id="race-info">
+        <div>Time: <span id="race-time">00:00.000</span></div>
+        <div>Best: <span id="best-time">00:37.993</span></div>
     </div>
     <div id="score">Score: 0</div>
+    <div id="controls">
+        WASD - Move | SPACE - Jump | SHIFT - Crouch | ARROWS - Tricks
+    </div>
     <script type="importmap">
         {
             "imports": {
@@ -48,25 +58,22 @@
     <script type="module">
         import * as THREE from 'three';
 
-        class SnowRider {
+        class SteepClone {
             constructor() {
                 this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
-                this.scene.fog = new THREE.Fog(0x87CEEB, 1, 1000);
+                this.scene.background = new THREE.Color(0x87CEEB);
+                this.scene.fog = new THREE.FogExp2(0x87CEEB, 0.001);
 
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
                 this.renderer = new THREE.WebGLRenderer({ antialias: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
                 document.body.appendChild(this.renderer.domElement);
 
+                this.startTime = Date.now();
                 this.score = 0;
-                this.tricks = {
-                    isInAir: false,
-                    rotationX: 0,
-                    rotationZ: 0,
-                    grab: false
-                };
+                this.raceStarted = false;
 
                 this.player = {
                     position: new THREE.Vector3(0, 50, 0),
@@ -76,143 +83,179 @@
                     isGrounded: false
                 };
 
+                this.tricks = {
+                    isInAir: false,
+                    rotationX: 0,
+                    rotationZ: 0,
+                    grab: false
+                };
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
                 this.init();
             }
 
             init() {
-                // Create mountain terrain
-                const terrainGeometry = new THREE.PlaneGeometry(500, 1000, 100, 100);
+                // Create terrain
+                const terrainGeometry = new THREE.PlaneGeometry(1000, 2000, 100, 200);
                 const vertices = terrainGeometry.attributes.position.array;
-                
-                // Generate more realistic mountain terrain
+
+                // Generate realistic mountain terrain
                 for (let i = 0; i < vertices.length; i += 3) {
                     const x = vertices[i];
                     const z = vertices[i + 2];
                     
-                    // Base height with perlin-like noise
-                    let height = Math.sin(x * 0.05) * 20 + Math.cos(z * 0.05) * 20;
+                    let height = Math.sin(x * 0.02) * 50 + Math.cos(z * 0.02) * 50;
                     
-                    // Add jumps and ramps
-                    if (z > -200 && z < -180 && Math.abs(x) < 30) {
-                        height += 15 * Math.exp(-(Math.pow(z + 190, 2) / 100));
+                    // Add race track depression
+                    const trackWidth = 20;
+                    const distanceFromTrack = Math.abs(x);
+                    if (distanceFromTrack < trackWidth) {
+                        height *= 0.5;
                     }
-                    if (z > -400 && z < -380 && Math.abs(x) < 30) {
-                        height += 20 * Math.exp(-(Math.pow(z + 390, 2) / 100));
-                    }
+                    
+                    // Add jumps
+                    const jumpLocations = [-200, -400, -600, -800];
+                    jumpLocations.forEach(loc => {
+                        if (z > loc - 10 && z < loc + 10 && Math.abs(x) < trackWidth) {
+                            height += 15 * Math.exp(-(Math.pow(z - loc, 2) / 50));
+                        }
+                    });
                     
                     vertices[i + 1] = height;
                 }
 
                 terrainGeometry.computeVertexNormals();
                 
+                const snowTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/terrain/grasslight-big.jpg');
+                snowTexture.wrapS = snowTexture.wrapT = THREE.RepeatWrapping;
+                snowTexture.repeat.set(50, 50);
+
                 const terrainMaterial = new THREE.MeshPhongMaterial({ 
                     color: 0xffffff,
-                    wireframe: false,
-                    shininess: 10
+                    map: snowTexture,
+                    shininess: 30,
+                    specular: 0x333333
                 });
+
                 this.terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
-                this.terrain.rotation.x = -Math.PI / 3; // Steeper slope
+                this.terrain.rotation.x = -Math.PI / 3;
                 this.terrain.receiveShadow = true;
                 this.scene.add(this.terrain);
 
                 // Create skier character
                 this.playerGroup = new THREE.Group();
 
-                // Body (coat)
+                // Body (yellow jacket)
                 const bodyGeometry = new THREE.BoxGeometry(1, 1.5, 0.7);
-                const coatMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 }); // Red coat
-                const body = new THREE.Mesh(bodyGeometry, coatMaterial);
+                const jacketMaterial = new THREE.MeshPhongMaterial({ color: 0xFFAA00 }); // Yellow jacket
+                const body = new THREE.Mesh(bodyGeometry, jacketMaterial);
                 body.position.y = 1.5;
                 this.playerGroup.add(body);
 
                 // Head with helmet
                 const helmetGeometry = new THREE.SphereGeometry(0.3, 16, 16);
-                const helmetMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 }); // Black helmet
+                const helmetMaterial = new THREE.MeshPhongMaterial({ color: 0x00AA00 }); // Green helmet
                 const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
                 helmet.position.y = 2.5;
                 this.playerGroup.add(helmet);
 
                 // Goggles
                 const gogglesGeometry = new THREE.BoxGeometry(0.6, 0.15, 0.1);
-                const gogglesMaterial = new THREE.MeshPhongMaterial({ color: 0x3366ff }); // Blue goggles
+                const gogglesMaterial = new THREE.MeshPhongMaterial({ color: 0x3366ff });
                 const goggles = new THREE.Mesh(gogglesGeometry, gogglesMaterial);
                 goggles.position.y = 2.5;
                 goggles.position.z = 0.2;
                 this.playerGroup.add(goggles);
 
-                // Left Ski
+                // Skis
                 const skiGeometry = new THREE.BoxGeometry(0.2, 0.1, 2);
-                const skiMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 }); // Dark gray skis
+                const skiMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+                
                 const leftSki = new THREE.Mesh(skiGeometry, skiMaterial);
                 leftSki.position.set(-0.3, 0, 0);
                 this.playerGroup.add(leftSki);
 
-                // Right Ski
                 const rightSki = new THREE.Mesh(skiGeometry, skiMaterial);
                 rightSki.position.set(0.3, 0, 0);
                 this.playerGroup.add(rightSki);
 
-                // Left Pole
+                // Poles
                 const poleGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.4);
-                const poleMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 }); // Silver poles
+                const poleMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+                
                 const leftPole = new THREE.Mesh(poleGeometry, poleMaterial);
                 leftPole.position.set(-0.6, 1.2, 0.3);
                 this.playerGroup.add(leftPole);
 
-                // Right Pole
                 const rightPole = new THREE.Mesh(poleGeometry, poleMaterial);
                 rightPole.position.set(0.6, 1.2, 0.3);
                 this.playerGroup.add(rightPole);
 
-                // Pole baskets
-                const basketGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.05);
-                const basketMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
-                
-                const leftBasket = new THREE.Mesh(basketGeometry, basketMaterial);
-                leftBasket.position.set(-0.6, 0.5, 0.3);
-                this.playerGroup.add(leftBasket);
+                // Add race gates
+                this.addRaceGates();
 
-                const rightBasket = new THREE.Mesh(basketGeometry, basketMaterial);
-                rightBasket.position.set(0.6, 0.5, 0.3);
-                this.playerGroup.add(rightBasket);
+                // Add trees
+                this.addTrees();
 
-                // Arms
-                const armGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.8);
-                const armMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 }); // Red to match coat
-
-                const leftArm = new THREE.Mesh(armGeometry, armMaterial);
-                leftArm.position.set(-0.6, 1.8, 0);
-                leftArm.rotation.z = -0.3;
-                this.playerGroup.add(leftArm);
-
-                const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-                rightArm.position.set(0.6, 1.8, 0);
-                rightArm.rotation.z = 0.3;
-                this.playerGroup.add(rightArm);
-
-                // Add the entire player group to the scene
                 this.scene.add(this.playerGroup);
-                this.playerMesh = this.playerGroup; // Update reference for existing movement code
+                this.playerMesh = this.playerGroup;
 
-                // Add lighting
+                // Lighting
                 const sun = new THREE.DirectionalLight(0xffffff, 1);
                 sun.position.set(100, 100, 0);
                 sun.castShadow = true;
                 this.scene.add(sun);
                 this.scene.add(new THREE.AmbientLight(0x404040));
 
-                // Add mountains in background
+                // Add mountains
                 this.addMountains();
 
                 this.setupControls();
                 this.animate();
             }
 
+            addRaceGates() {
+                const gateGeometry = new THREE.CylinderGeometry(0.2, 0.2, 4);
+                const gateMaterial = new THREE.MeshPhongMaterial({ color: 0xff4444 });
+                
+                for(let i = 0; i < 20; i++) {
+                    const leftGate = new THREE.Mesh(gateGeometry, gateMaterial);
+                    const rightGate = new THREE.Mesh(gateGeometry, gateMaterial);
+                    
+                    leftGate.position.set(-5, 2, -i * 50);
+                    rightGate.position.set(5, 2, -i * 50);
+                    
+                    this.scene.add(leftGate);
+                    this.scene.add(rightGate);
+                }
+            }
+
+            addTrees() {
+                const treeGeometry = new THREE.ConeGeometry(2, 5);
+                const treeMaterial = new THREE.MeshPhongMaterial({ color: 0x005500 });
+                
+                for(let i = 0; i < 200; i++) {
+                    const tree = new THREE.Mesh(treeGeometry, treeMaterial);
+                    const x = Math.random() * 400 - 200;
+                    const z = Math.random() * 1000 - 500;
+                    
+                    if(Math.abs(x) > 10) {
+                        tree.position.set(x, 2, z);
+                        this.scene.add(tree);
+                    }
+                }
+            }
+
             addMountains() {
                 const mountainGeometry = new THREE.ConeGeometry(100, 200, 4);
                 const mountainMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
                 
-                for (let i = 0; i < 10; i++) {
+                for(let i = 0; i < 10; i++) {
                     const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
                     mountain.position.set(
                         Math.random() * 1000 - 500,
@@ -273,12 +316,30 @@
                 });
             }
 
+            updateRaceTime() {
+                if (!this.raceStarted) return;
+                
+                const currentTime = Date.now();
+                const elapsedTime = currentTime - this.startTime;
+                const minutes = Math.floor(elapsedTime / 60000);
+                const seconds = Math.floor((elapsedTime % 60000) / 1000);
+                const milliseconds = elapsedTime % 1000;
+                
+                document.getElementById('race-time').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+            }
+
             updatePlayer(delta) {
                 const GRAVITY = 9.8;
                 const JUMP_FORCE = 15;
                 const TURN_SPEED = 2;
                 const MAX_SPEED = 40;
                 const ACCELERATION = 15;
+
+                if (!this.raceStarted && this.player.speed > 0) {
+                    this.raceStarted = true;
+                    this.startTime = Date.now();
+                }
 
                 // Apply gravity
                 if (!this.player.isGrounded) {
@@ -306,21 +367,19 @@
                     if (this.keys.arrowDown) this.tricks.rotationX -= 5 * delta;
                     if (this.keys.shift) this.tricks.grab = true;
 
-                    // Apply trick rotations
                     this.playerMesh.rotation.z = this.tricks.rotationZ;
                     this.playerMesh.rotation.x = this.tricks.rotationX;
 
-                    // Score for tricks
                     if (Math.abs(this.tricks.rotationZ) > Math.PI * 2) {
-                        this.score += 100; // 360 spin
+                        this.score += 100;
                         this.updateScore();
                     }
                     if (Math.abs(this.tricks.rotationX) > Math.PI) {
-                        this.score += 150; // Flip
+                        this.score += 150;
                         this.updateScore();
                     }
                     if (this.tricks.grab) {
-                        this.score += 50; // Grab
+                        this.score += 50;
                         this.updateScore();
                     }
                 }
@@ -331,7 +390,7 @@
                 this.player.position.add(direction.multiplyScalar(this.player.speed * delta));
                 this.player.position.add(this.player.velocity.clone().multiplyScalar(delta));
 
-                // Ground check (simplified)
+                // Ground check
                 if (this.player.position.y < 2) {
                     this.player.position.y = 2;
                     this.player.velocity.y = 0;
@@ -353,33 +412,33 @@
                 // Animate skiing
                 this.animateSkiing(delta);
 
-                // Update camera
-                this.camera.position.copy(this.player.position);
-                this.camera.position.y += 10;
-                this.camera.position.z += 20;
+                // Update camera - more dynamic following
+                const cameraOffset = new THREE.Vector3(
+                    0,
+                    3 + (this.player.speed / MAX_SPEED) * 2,
+                    8 + (this.player.speed / MAX_SPEED) * 4
+                );
+                cameraOffset.applyEuler(new THREE.Euler(0, this.player.rotation.y, 0));
+                this.camera.position.copy(this.player.position).add(cameraOffset);
                 this.camera.lookAt(this.player.position);
             }
 
             animateSkiing(delta) {
                 if (this.player.speed > 0) {
-                    // Swing poles back and forth
                     const poleSwing = Math.sin(Date.now() * 0.01) * 0.2;
                     this.playerGroup.children.forEach(child => {
-                        if (child.position.x === -0.6 || child.position.x === 0.6) { // Poles
+                        if (child.position.x === -0.6 || child.position.x === 0.6) {
                             child.rotation.x = poleSwing;
                         }
                     });
 
-                    // Lean forward when going fast
                     const speedLean = Math.min(this.player.speed / 40, 0.3);
                     this.playerGroup.rotation.x = speedLean;
                 }
 
-                // Lean into turns
                 const turnLean = this.keys.left ? 0.2 : this.keys.right ? -0.2 : 0;
                 this.playerGroup.rotation.z = turnLean;
 
-                // Crouch when holding shift
                 if (this.keys.shift) {
                     this.playerGroup.scale.y = 0.8;
                 } else {
@@ -394,12 +453,13 @@
             animate() {
                 requestAnimationFrame(() => this.animate());
                 this.updatePlayer(1/60);
+                this.updateRaceTime();
                 this.renderer.render(this.scene, this.camera);
             }
         }
 
         window.onload = () => {
-            new SnowRider();
+            new SteepClone();
         };
     </script>
 </body>
