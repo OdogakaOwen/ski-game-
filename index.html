@@ -1317,17 +1317,25 @@
             settings.remove();
         };
         document.getElementById('close-settings').onclick = () => settings.remove();
-    }    init() {
-        this.setupUI();
-        this.setupAudioSystem();
-        this.setupGameModes();
-        this.createParticleSystems();
-        this.setupWeatherSystem();
-        this.setupReplaySystem();
-        this.setupTrickSystem();
-        this.setupPhysics();
-        this.createPlayer();
-        this.createTerrain();
+    }   init() {
+    // Add this new timeout code here
+    setTimeout(() => {
+        this.ui.loadingScreen.style.display = 'none';
+        this.ui.mainMenu.style.display = 'block';
+    }, 2000);
+
+    // Existing code stays the same
+    this.setupUI();
+    this.setupAudioSystem();
+    this.setupGameModes();
+    this.createParticleSystems();
+    this.setupWeatherSystem();
+    this.setupReplaySystem();
+    this.setupTrickSystem();
+    this.setupPhysics();
+    this.createPlayer();
+    this.createTerrain();
+}
         
         // Initialize game state
         this.gameState = {
