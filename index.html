@@ -1358,7 +1358,7 @@
         });
     }
 
-    loadAssets() {
+        loadAssets() {
         return new Promise((resolve) => {
             const textureLoader = new THREE.TextureLoader();
             const audioLoader = new THREE.AudioLoader();
@@ -1401,7 +1401,6 @@
             });
         });
     }
-
     startGame() {
         this.gameState.isPlaying = true;
         this.gameState.startTime = Date.now();
