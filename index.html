@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Snow Rider</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #instructions {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        Controls:<br>
+        W - Move forward<br>
+        S - Brake<br>
+        A - Turn left<br>
+        D - Turn right
+    </div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.162.0/build/three.module.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        class SnowRider {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(this.renderer.domElement);
+
+                this.player = {
+                    position: new THREE.Vector3(0, 50, 0),
+                    velocity: new THREE.Vector3(0, 0, 0),
+                    rotation: new THREE.Euler(0, 0, 0),
+                    speed: 0,
+                    isGrounded: false
+                };
+
+                this.init();
+            }
+
+            init() {
+                // Create terrain
+                const terrainGeometry = new THREE.PlaneGeometry(200, 200, 40, 40);
+                const terrainMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xffffff,
+                    wireframe: false 
+                });
+                this.terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+                this.terrain.rotation.x = -Math.PI / 2;
+                this.scene.add(this.terrain);
+
+                // Create player
+                const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
+                const playerMaterial = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+                this.playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
+                this.scene.add(this.playerMesh);
+
+                // Add lighting
+                const light = new THREE.DirectionalLight(0xffffff, 1);
+                light.position.set(0, 100, 0);
+                this.scene.add(light);
+                this.scene.add(new THREE.AmbientLight(0x404040));
+
+                // Set camera position
+                this.camera.position.set(0, 10, 20);
+                this.camera.lookAt(this.playerMesh.position);
+
+                this.setupControls();
+                this.animate();
+            }
+
+            setupControls() {
+                this.keys = {
+                    left: false,
+                    right: false,
+                    up: false,
+                    down: false
+                };
+
+                window.addEventListener('keydown', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case 'a': this.keys.left = true; break;
+                        case 'd': this.keys.right = true; break;
+                        case 'w': this.keys.up = true; break;
+                        case 's': this.keys.down = true; break;
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case 'a': this.keys.left = false; break;
+                        case 'd': this.keys.right = false; break;
+                        case 'w': this.keys.up = false; break;
+                        case 's': this.keys.down = false; break;
+                    }
+                });
+            }
+
+            updatePlayer(delta) {
+                if (this.keys.left) this.player.rotation.y += 2 * delta;
+                if (this.keys.right) this.player.rotation.y -= 2 * delta;
+                if (this.keys.up) this.player.speed = Math.min(this.player.speed + 10 * delta, 30);
+                if (this.keys.down) this.player.speed = Math.max(this.player.speed - 10 * delta, 0);
+
+                const direction = new THREE.Vector3(0, 0, -1);
+                direction.applyEuler(this.player.rotation);
+                this.player.position.add(direction.multiplyScalar(this.player.speed * delta));
+
+                this.playerMesh.position.copy(this.player.position);
+                this.playerMesh.rotation.copy(this.player.rotation);
+
+                this.camera.position.copy(this.player.position);
+                this.camera.position.y += 10;
+                this.camera.position.z += 20;
+                this.camera.lookAt(this.player.position);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                this.updatePlayer(1/60);
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        window.onload = () => {
+            new SnowRider();
+        };
+    </script>
+</body>
+</html>
