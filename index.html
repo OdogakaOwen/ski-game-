@@ -1,5 +1,119 @@
-// ... existing code ...
-// Replace the player creation part in the init() function with this:
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Snow Rider Pro</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #hud {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+        #score {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        Controls:<br>
+        W - Forward<br>
+        S - Brake<br>
+        A/D - Turn<br>
+        SPACE - Jump<br>
+        SHIFT - Crouch<br>
+        ARROWS - Tricks
+    </div>
+    <div id="score">Score: 0</div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.162.0/build/three.module.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        class SnowRider {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
+                this.scene.fog = new THREE.Fog(0x87CEEB, 1, 1000);
+
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.score = 0;
+                this.tricks = {
+                    isInAir: false,
+                    rotationX: 0,
+                    rotationZ: 0,
+                    grab: false
+                };
+
+                this.player = {
+                    position: new THREE.Vector3(0, 50, 0),
+                    velocity: new THREE.Vector3(0, 0, 0),
+                    rotation: new THREE.Euler(0, 0, 0),
+                    speed: 0,
+                    isGrounded: false
+                };
+
+                this.init();
+            }
+
+            init() {
+                // Create mountain terrain
+                const terrainGeometry = new THREE.PlaneGeometry(500, 1000, 100, 100);
+                const vertices = terrainGeometry.attributes.position.array;
+                
+                // Generate more realistic mountain terrain
+                for (let i = 0; i < vertices.length; i += 3) {
+                    const x = vertices[i];
+                    const z = vertices[i + 2];
+                    
+                    // Base height with perlin-like noise
+                    let height = Math.sin(x * 0.05) * 20 + Math.cos(z * 0.05) * 20;
+                    
+                    // Add jumps and ramps
+                    if (z > -200 && z < -180 && Math.abs(x) < 30) {
+                        height += 15 * Math.exp(-(Math.pow(z + 190, 2) / 100));
+                    }
+                    if (z > -400 && z < -380 && Math.abs(x) < 30) {
+                        height += 20 * Math.exp(-(Math.pow(z + 390, 2) / 100));
+                    }
+                    
+                    vertices[i + 1] = height;
+                }
+
+                terrainGeometry.computeVertexNormals();
+                
+                const terrainMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xffffff,
+                    wireframe: false,
+                    shininess: 10
+                });
+                this.terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+                this.terrain.rotation.x = -Math.PI / 3; // Steeper slope
+                this.terrain.receiveShadow = true;
+                this.scene.add(this.terrain);
 
                 // Create skier character
                 this.playerGroup = new THREE.Group();
@@ -80,7 +194,173 @@
                 this.scene.add(this.playerGroup);
                 this.playerMesh = this.playerGroup; // Update reference for existing movement code
 
-// ... rest of existing code ...            animateSkiing(delta) {
+                // Add lighting
+                const sun = new THREE.DirectionalLight(0xffffff, 1);
+                sun.position.set(100, 100, 0);
+                sun.castShadow = true;
+                this.scene.add(sun);
+                this.scene.add(new THREE.AmbientLight(0x404040));
+
+                // Add mountains in background
+                this.addMountains();
+
+                this.setupControls();
+                this.animate();
+            }
+
+            addMountains() {
+                const mountainGeometry = new THREE.ConeGeometry(100, 200, 4);
+                const mountainMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
+                
+                for (let i = 0; i < 10; i++) {
+                    const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
+                    mountain.position.set(
+                        Math.random() * 1000 - 500,
+                        -50,
+                        Math.random() * -1000 - 500
+                    );
+                    mountain.scale.set(
+                        1 + Math.random() * 2,
+                        1 + Math.random() * 2,
+                        1 + Math.random() * 2
+                    );
+                    this.scene.add(mountain);
+                }
+            }
+
+            setupControls() {
+                this.keys = {
+                    left: false,
+                    right: false,
+                    up: false,
+                    down: false,
+                    space: false,
+                    shift: false,
+                    arrowLeft: false,
+                    arrowRight: false,
+                    arrowUp: false,
+                    arrowDown: false
+                };
+
+                window.addEventListener('keydown', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case 'a': this.keys.left = true; break;
+                        case 'd': this.keys.right = true; break;
+                        case 'w': this.keys.up = true; break;
+                        case 's': this.keys.down = true; break;
+                        case ' ': this.keys.space = true; break;
+                        case 'shift': this.keys.shift = true; break;
+                        case 'arrowleft': this.keys.arrowLeft = true; break;
+                        case 'arrowright': this.keys.arrowRight = true; break;
+                        case 'arrowup': this.keys.arrowUp = true; break;
+                        case 'arrowdown': this.keys.arrowDown = true; break;
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case 'a': this.keys.left = false; break;
+                        case 'd': this.keys.right = false; break;
+                        case 'w': this.keys.up = false; break;
+                        case 's': this.keys.down = false; break;
+                        case ' ': this.keys.space = false; break;
+                        case 'shift': this.keys.shift = false; break;
+                        case 'arrowleft': this.keys.arrowLeft = false; break;
+                        case 'arrowright': this.keys.arrowRight = false; break;
+                        case 'arrowup': this.keys.arrowUp = false; break;
+                        case 'arrowdown': this.keys.arrowDown = false; break;
+                    }
+                });
+            }
+
+            updatePlayer(delta) {
+                const GRAVITY = 9.8;
+                const JUMP_FORCE = 15;
+                const TURN_SPEED = 2;
+                const MAX_SPEED = 40;
+                const ACCELERATION = 15;
+
+                // Apply gravity
+                if (!this.player.isGrounded) {
+                    this.player.velocity.y -= GRAVITY * delta;
+                }
+
+                // Jumping
+                if (this.keys.space && this.player.isGrounded) {
+                    this.player.velocity.y = JUMP_FORCE;
+                    this.player.isGrounded = false;
+                    this.tricks.isInAir = true;
+                }
+
+                // Movement
+                if (this.keys.left) this.player.rotation.y += TURN_SPEED * delta;
+                if (this.keys.right) this.player.rotation.y -= TURN_SPEED * delta;
+                if (this.keys.up) this.player.speed = Math.min(this.player.speed + ACCELERATION * delta, MAX_SPEED);
+                if (this.keys.down) this.player.speed = Math.max(this.player.speed - ACCELERATION * delta, 0);
+
+                // Tricks
+                if (this.tricks.isInAir) {
+                    if (this.keys.arrowLeft) this.tricks.rotationZ += 5 * delta;
+                    if (this.keys.arrowRight) this.tricks.rotationZ -= 5 * delta;
+                    if (this.keys.arrowUp) this.tricks.rotationX += 5 * delta;
+                    if (this.keys.arrowDown) this.tricks.rotationX -= 5 * delta;
+                    if (this.keys.shift) this.tricks.grab = true;
+
+                    // Apply trick rotations
+                    this.playerMesh.rotation.z = this.tricks.rotationZ;
+                    this.playerMesh.rotation.x = this.tricks.rotationX;
+
+                    // Score for tricks
+                    if (Math.abs(this.tricks.rotationZ) > Math.PI * 2) {
+                        this.score += 100; // 360 spin
+                        this.updateScore();
+                    }
+                    if (Math.abs(this.tricks.rotationX) > Math.PI) {
+                        this.score += 150; // Flip
+                        this.updateScore();
+                    }
+                    if (this.tricks.grab) {
+                        this.score += 50; // Grab
+                        this.updateScore();
+                    }
+                }
+
+                // Update position
+                const direction = new THREE.Vector3(0, 0, -1);
+                direction.applyEuler(this.player.rotation);
+                this.player.position.add(direction.multiplyScalar(this.player.speed * delta));
+                this.player.position.add(this.player.velocity.clone().multiplyScalar(delta));
+
+                // Ground check (simplified)
+                if (this.player.position.y < 2) {
+                    this.player.position.y = 2;
+                    this.player.velocity.y = 0;
+                    this.player.isGrounded = true;
+
+                    if (this.tricks.isInAir) {
+                        this.tricks.isInAir = false;
+                        this.tricks.rotationX = 0;
+                        this.tricks.rotationZ = 0;
+                        this.tricks.grab = false;
+                        this.playerMesh.rotation.set(0, this.player.rotation.y, 0);
+                    }
+                }
+
+                // Update mesh position
+                this.playerMesh.position.copy(this.player.position);
+                this.playerMesh.rotation.y = this.player.rotation.y;
+
+                // Animate skiing
+                this.animateSkiing(delta);
+
+                // Update camera
+                this.camera.position.copy(this.player.position);
+                this.camera.position.y += 10;
+                this.camera.position.z += 20;
+                this.camera.lookAt(this.player.position);
+            }
+
+            animateSkiing(delta) {
                 if (this.player.speed > 0) {
                     // Swing poles back and forth
                     const poleSwing = Math.sin(Date.now() * 0.01) * 0.2;
@@ -105,4 +385,22 @@
                 } else {
                     this.playerGroup.scale.y = 1;
                 }
-            }this.animateSkiing(delta);
+            }
+
+            updateScore() {
+                document.getElementById('score').textContent = `Score: ${this.score}`;
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                this.updatePlayer(1/60);
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        window.onload = () => {
+            new SnowRider();
+        };
+    </script>
+</body>
+</html>
