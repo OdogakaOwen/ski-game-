@@ -1317,14 +1317,14 @@
             settings.remove();
         };
         document.getElementById('close-settings').onclick = () => settings.remove();
-    }   init() {
-    // Add this new timeout code here
+    }   iinit() {
+    // Force loading screen to disappear after 2 seconds
     setTimeout(() => {
-        this.ui.loadingScreen.style.display = 'none';
-        this.ui.mainMenu.style.display = 'block';
+        document.getElementById('loading-screen').style.display = 'none';
+        document.getElementById('main-menu').style.display = 'block';
     }, 2000);
 
-    // Existing code stays the same
+    // Initialize everything else
     this.setupUI();
     this.setupAudioSystem();
     this.setupGameModes();
@@ -1335,6 +1335,16 @@
     this.setupPhysics();
     this.createPlayer();
     this.createTerrain();
+
+    // Start animation loop
+    this.animate();
+
+    // Add event listeners
+    window.addEventListener('resize', () => this.handleResize());
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') this.togglePause();
+    });
+}
 }
         
         // Initialize game state
@@ -1367,38 +1377,9 @@
     }
 
        loadAssets() {
-    return new Promise((resolve) => {
-        // Reduce number of assets to load
-        const totalItems = 5; // Reduced from 10
-        let loadedItems = 0;
-
-        const updateProgress = () => {
-            loadedItems++;
-            const progress = (loadedItems / totalItems) * 100;
-            this.ui.loadingProgress.style.width = `${progress}%`;
-            if (loadedItems === totalItems) {
-                setTimeout(resolve, 500); // Add small delay for smooth transition
-            }
-        };
-
-        // Load essential textures only
-        const textureLoader = new THREE.TextureLoader();
-        ['snow', 'snowflake'].forEach(textureName => {
-            textureLoader.load(
-                `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==`, // Default white pixel
-                () => updateProgress(),
-                undefined,
-                () => updateProgress() // Continue even if load fails
-            );
-        });
-
-        // Load minimal sound effects
-        ['jump', 'land', 'trick'].forEach(() => {
-            setTimeout(updateProgress, 100); // Simulate quick load
-        });
-    });
+    // Do nothing - we're skipping asset loading for now
+    return Promise.resolve();
 }
-    }
     startGame() {
         this.gameState.isPlaying = true;
         this.gameState.startTime = Date.now();
@@ -1550,49 +1531,3 @@ window.onload = () => {
     const game = new UltimateSnowRider();
     game.init() ;
 init() {
-    // Add this new timeout code here
-    setTimeout(() => {
-        this.ui.loadingScreen.style.display = 'none';
-        this.ui.mainMenu.style.display = 'block';
-    }, 2000);
-
-    // Existing code stays the same
-    this.setupUI();
-    this.setupAudioSystem();
-    this.setupGameModes();
-    this.createParticleSystems();
-    this.setupWeatherSystem();
-    this.setupReplaySystem();
-    this.setupTrickSystem();
-    this.setupPhysics();
-    this.createPlayer();
-    this.createTerrain();
-
-    // Initialize game state
-    this.gameState = {
-        isLoading: true,
-        isPlaying: false,
-        isPaused: false,
-        currentMode: 'freeride',
-        score: 0,
-        bestScore: parseInt(localStorage.getItem('bestScore')) || 0,
-        startTime: 0,
-        elapsedTime: 0
-    };
-
-    // Start loading assets
-    this.loadAssets().then(() => {
-        this.gameState.isLoading = false;
-        this.ui.loadingScreen.style.display = 'none';
-        this.ui.mainMenu.style.display = 'block';
-    });
-
-    // Start animation loop
-    this.animate();
-
-    // Add event listeners
-    window.addEventListener('resize', () => this.handleResize());
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') this.togglePause();
-    });
-}
